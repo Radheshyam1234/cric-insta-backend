@@ -16,6 +16,8 @@ app.get("/", (req, res) => {
   res.send("Hello from cric-insta backend");
 });
 
+app.use("/auth", require("./routes/auth-router"));
+
 const server = app.listen(process.env.PORT || PORT, () => {
   console.log(`listening to port 8080`);
 });
