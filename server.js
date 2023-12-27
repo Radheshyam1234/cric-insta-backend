@@ -13,7 +13,7 @@ const PORT = 8080;
 initializeConnection();
 
 app.get("/", (req, res) => {
-  res.send("Hello from cric-insta backend");
+  res.send("CricInsta backend is working correctly");
 });
 
 app.use("/auth", require("./routes/auth-router"));
