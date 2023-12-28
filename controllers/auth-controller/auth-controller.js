@@ -8,73 +8,88 @@ const {
   createNodemailTransporter,
   getMailOptions,
 } = require("../../utils/nodemailer");
+const { generateToken } = require("../../utils/generate-token");
+
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const sendOTP = async (req, res) => {
   let { email } = req.body;
-  if (!email) res.status(401).json({ errorText: "Email is not entered" });
+  if (!emailPattern.test(email))
+    return res.status(401).json({ errorText: "Enter a valid email" });
+
   const transporter = createNodemailTransporter();
   const OTP = generateOtp();
+
   try {
     await Otp.deleteMany({ email });
     await Otp.create({ email, OTP });
     await transporter.sendMail(getMailOptions(email, OTP));
-    res.status(200).json({ message: "Otp sent on your email" });
+    return res.status(200).json({ message: "Otp sent on your email" });
   } catch (error) {
-    res.status(400).json({ errorText: "Failed to send the OTP" });
+    return res.status(500).json({ errorText: "Failed to send the OTP" });
   }
 };
 
 const verifyOtp = async (req, res) => {
-  const { email, userName, otp: userEnteredOTP } = req.body;
-  if (!email || !userName || !userEnteredOTP)
-    if (!email)
-      res.status(400).json({ errorText: "Please fill all the fields" });
-  const storedOtpDetails = await Otp.findOne({ email });
+  const { otp: userEnteredOTP, signUpInfo } = req.body;
+  const { requestType } = req.query;
+
+  if (!emailPattern.test(signUpInfo?.email) || !userEnteredOTP)
+    return res.status(400).json({ errorText: "Please fill all the fields" });
+
+  const storedOtpDetails = await Otp.findOne({ email: signUpInfo.email });
+
   if (storedOtpDetails && storedOtpDetails.OTP === userEnteredOTP) {
-    await Otp.deleteMany({ email });
-    res.status(200).json({ message: "OTP Verified Successfully" });
+    await Otp.deleteMany({ email: signUpInfo.email });
+    if (requestType === "create user") {
+      await signUpUser(req, res);
+    }
+    // return res.status(200).json({ message: "OTP Verified Successfully" });
   } else {
-    res.status(401).json({ errorText: "Invalid OTP" });
+    return res.status(401).json({ errorText: "Invalid OTP" });
   }
 };
 
-// const signUpUser = async (req, res) => {
-//   try {
-//     console.log(req.body);
-//     const { email, password } = req.body;
+const signUpUser = async (req, res) => {
+  const {
+    signUpInfo,
+    signUpInfo: { email, userName, password },
+  } = req.body;
 
-//     const isUserExist = await User.findOne({ email });
-//     if (isUserExist !== null) {
-//       return res.status(403).json({
-//         message: "Account already exists for this email",
-//       });
-//     }
+  try {
+    if (!emailPattern.test(email) || !userName || !password)
+      return res
+        .status(401)
+        .json({ errorText: "Fill all fields or a valid email" });
 
-//     hashedPassword = await bcrypt.hash(password, 12);
+    const isUserExist = await User.findOne({ email });
+    if (isUserExist) {
+      return res.status(403).json({
+        message: "Account already exists for this email",
+      });
+    }
 
-//     const NewUser = new User({
-//       ...req.body,
-//       password: hashedPassword,
-//     });
+    hashedPassword = await bcrypt.hash(password, 12);
+    const NewUser = new User({
+      ...signUpInfo,
+      password: hashedPassword,
+    });
+    await NewUser.save();
 
-//     await NewUser.save();
-
-//     const token = generateToken(NewUser._id);
-
-//     res.status(201).json({
-//       response: {
-//         NewUser,
-//         token,
-//       },
-//     });
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({
-//       message: "Something went wrong!",
-//       errorMessage: error.message,
-//     });
-//   }
-// };
+    const token = generateToken(NewUser._id);
+    return res.status(201).json({
+      response: {
+        NewUser,
+        token,
+      },
+    });
+  } catch (error) {
+    console.log(error, "85");
+    return res.status(500).json({
+      errorText: "Failed to create the user!",
+    });
+  }
+};
 
 // const signInUser = async (req, res) => {
 //   try {
@@ -116,5 +131,6 @@ const verifyOtp = async (req, res) => {
 module.exports = {
   sendOTP,
   verifyOtp,
+  signUpUser,
   // signInUser,
 };
