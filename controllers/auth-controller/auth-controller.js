@@ -11,6 +11,7 @@ const {
 
 const sendOTP = async (req, res) => {
   let { email } = req.body;
+  if (!email) res.status(401).json({ errorText: "Email is not entered" });
   const transporter = createNodemailTransporter();
   const OTP = generateOtp();
   try {
@@ -19,18 +20,21 @@ const sendOTP = async (req, res) => {
     await transporter.sendMail(getMailOptions(email, OTP));
     res.status(200).json({ message: "Otp sent on your email" });
   } catch (error) {
-    console.log(error);
+    res.status(400).json({ errorText: "Failed to send the OTP" });
   }
 };
 
 const verifyOtp = async (req, res) => {
   const { email, userName, otp: userEnteredOTP } = req.body;
+  if (!email || !userName || !userEnteredOTP)
+    if (!email)
+      res.status(400).json({ errorText: "Please fill all the fields" });
   const storedOtpDetails = await Otp.findOne({ email });
   if (storedOtpDetails && storedOtpDetails.OTP === userEnteredOTP) {
     await Otp.deleteMany({ email });
     res.status(200).json({ message: "OTP Verified Successfully" });
   } else {
-    res.status(401).json({ message: "Invalid OTP" });
+    res.status(401).json({ errorText: "Invalid OTP" });
   }
 };
 
