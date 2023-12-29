@@ -2,13 +2,13 @@ const User = require("../../models/user-model");
 const Otp = require("../../models/otp-model");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-const nodemailer = require("nodemailer");
 const { generateOtp } = require("../../utils/generate-otp");
 const {
   createNodemailTransporter,
   getMailOptions,
 } = require("../../utils/nodemailer");
 const { generateToken } = require("../../utils/generate-token");
+require("dotenv").config();
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -76,10 +76,11 @@ const signUpUser = async (req, res) => {
     });
     await NewUser.save();
 
+    const sanitizedUser = await User.findById(NewUser._id).select("-password");
     const token = generateToken(NewUser._id);
     return res.status(201).json({
       response: {
-        NewUser,
+        user: sanitizedUser,
         token,
       },
     });
@@ -91,46 +92,51 @@ const signUpUser = async (req, res) => {
   }
 };
 
-// const signInUser = async (req, res) => {
-//   try {
-//     const { email, password } = req.body;
-//     const user = await User.findOne({ email });
-//     if (!user) {
-//       res.status(403).json({ message: "Email or password is incorrect!" });
-//     } else {
-//       bcrypt
-//         .compare(password, user.password)
-//         .then((matched) => {
-//           if (matched) {
-//             const token = jwt.sign({ _id: user._id }, JWT_SECRET);
-//             res.status(201).json({
-//               response: {
-//                 user,
-//                 token,
-//               },
-//             });
-//           } else {
-//             res.status(403).json({ message: "Password is incorrect!" });
-//           }
-//         })
-
-//         .catch((error) => {
-//           console.log(error);
-//           res.status(403).json({ message: "Email or password is incorrect!" });
-//         });
-//     }
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({
-//       message: "Something went wrong!",
-//       errorMessage: error.message,
-//     });
-//   }
-// };
+const signInUser = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res
+        .status(403)
+        .json({ errorText: "Email or password is incorrect!" });
+    } else {
+      bcrypt
+        .compare(password, user.password)
+        .then(async (matched) => {
+          if (matched) {
+            const token = jwt.sign(
+              { _id: user._id },
+              process.env.JWT_ACCESS_SECRET
+            );
+            const sanitizedUser = await User.findById(user._id).select(
+              "-password"
+            );
+            return res.status(201).json({
+              response: {
+                user: sanitizedUser,
+                token,
+              },
+            });
+          } else {
+            throw new Error("Password is incorrect!");
+          }
+        })
+        .catch((error) => {
+          return res
+            .status(403)
+            .json({ errorText: "Email or password is incorrect!" });
+        });
+    }
+  } catch (error) {
+    return res.status(500).json({
+      errorText: "Something went wrong!! Please refresh and try again..",
+    });
+  }
+};
 
 module.exports = {
   sendOTP,
   verifyOtp,
-  signUpUser,
-  // signInUser,
+  signInUser,
 };
