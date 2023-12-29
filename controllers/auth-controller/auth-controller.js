@@ -14,6 +14,8 @@ const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const sendOTP = async (req, res) => {
   let { email } = req.body;
+  const { requestType } = req.query;
+
   if (!emailPattern.test(email))
     return res.status(401).json({ errorText: "Enter a valid email" });
 
@@ -21,6 +23,13 @@ const sendOTP = async (req, res) => {
   const OTP = generateOtp();
 
   try {
+    if (requestType === "reset password") {
+      // Check if user exists with this email or not
+      const userExists = await User.findOne({ email });
+      if (!userExists)
+        return res.status(404).json({ errorText: "Email is not registered" });
+    }
+
     await Otp.deleteMany({ email });
     await Otp.create({ email, OTP });
     await transporter.sendMail(getMailOptions(email, OTP));
@@ -31,20 +40,21 @@ const sendOTP = async (req, res) => {
 };
 
 const verifyOtp = async (req, res) => {
-  const { otp: userEnteredOTP, signUpInfo } = req.body;
+  const { otp: userEnteredOTP, userInfo } = req.body;
   const { requestType } = req.query;
 
-  if (!emailPattern.test(signUpInfo?.email) || !userEnteredOTP)
+  if (!emailPattern.test(userInfo?.email) || !userEnteredOTP)
     return res.status(400).json({ errorText: "Please fill all the fields" });
 
-  const storedOtpDetails = await Otp.findOne({ email: signUpInfo.email });
+  const storedOtpDetails = await Otp.findOne({ email: userInfo.email });
 
   if (storedOtpDetails && storedOtpDetails.OTP === userEnteredOTP) {
-    await Otp.deleteMany({ email: signUpInfo.email });
+    // await Otp.deleteMany({ email: userInfo.email });
     if (requestType === "create user") {
       await signUpUser(req, res);
+    } else if (requestType === "reset password") {
+      return res.status(200).json({ message: "OTP Verified Successfully" });
     }
-    // return res.status(200).json({ message: "OTP Verified Successfully" });
   } else {
     return res.status(401).json({ errorText: "Invalid OTP" });
   }
@@ -52,8 +62,8 @@ const verifyOtp = async (req, res) => {
 
 const signUpUser = async (req, res) => {
   const {
-    signUpInfo,
-    signUpInfo: { email, userName, password },
+    userInfo,
+    userInfo: { email, userName, password },
   } = req.body;
 
   try {
@@ -71,7 +81,7 @@ const signUpUser = async (req, res) => {
 
     hashedPassword = await bcrypt.hash(password, 12);
     const NewUser = new User({
-      ...signUpInfo,
+      ...userInfo,
       password: hashedPassword,
     });
     await NewUser.save();
@@ -79,10 +89,8 @@ const signUpUser = async (req, res) => {
     const sanitizedUser = await User.findById(NewUser._id).select("-password");
     const token = generateToken(NewUser._id);
     return res.status(201).json({
-      response: {
-        user: sanitizedUser,
-        token,
-      },
+      user: sanitizedUser,
+      token,
     });
   } catch (error) {
     console.log(error, "85");
@@ -113,10 +121,8 @@ const signInUser = async (req, res) => {
               "-password"
             );
             return res.status(201).json({
-              response: {
-                user: sanitizedUser,
-                token,
-              },
+              user: sanitizedUser,
+              token,
             });
           } else {
             throw new Error("Password is incorrect!");
@@ -135,8 +141,42 @@ const signInUser = async (req, res) => {
   }
 };
 
+const resetPassword = async (req, res) => {
+  const { email, password } = req.body;
+  if (password.length < 4)
+    return res
+      .status(401)
+      .json({ errorText: "Password must have at least 4 characters" });
+  else {
+    hashedPassword = await bcrypt.hash(password, 12);
+    const updatedUser = await User.findOneAndUpdate(
+      { email },
+      { $set: { password: hashedPassword } },
+      {
+        new: true,
+      }
+    );
+    if (!updatedUser)
+      return res.status(403).json({ errorText: "No User Exist" });
+    else {
+      const token = jwt.sign(
+        { _id: updatedUser._id },
+        process.env.JWT_ACCESS_SECRET
+      );
+      const sanitizedUser = await User.findById(updatedUser._id).select(
+        "-password"
+      );
+      return res.status(201).json({
+        user: sanitizedUser,
+        token,
+      });
+    }
+  }
+};
+
 module.exports = {
   sendOTP,
   verifyOtp,
   signInUser,
+  resetPassword,
 };
