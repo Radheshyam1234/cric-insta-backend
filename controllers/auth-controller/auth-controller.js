@@ -14,6 +14,8 @@ const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const sendOTP = async (req, res) => {
   let { email } = req.body;
+  const { requestType } = req.query;
+
   if (!emailPattern.test(email))
     return res.status(401).json({ errorText: "Enter a valid email" });
 
@@ -21,10 +23,12 @@ const sendOTP = async (req, res) => {
   const OTP = generateOtp();
 
   try {
-    // Check if user exists with this email or not
-    const userExists = await User.findOne({ email });
-    if (!userExists)
-      return res.status(404).json({ errorText: "Email is not registered" });
+    if (requestType === "reset password") {
+      // Check if user exists with this email or not
+      const userExists = await User.findOne({ email });
+      if (!userExists)
+        return res.status(404).json({ errorText: "Email is not registered" });
+    }
 
     await Otp.deleteMany({ email });
     await Otp.create({ email, OTP });
