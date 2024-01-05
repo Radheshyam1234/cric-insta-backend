@@ -19,7 +19,6 @@ const sendOTP = async (req, res) => {
   if (!emailPattern.test(email))
     return res.status(401).json({ errorText: "Enter a valid email" });
 
-  console.log(requestType);
   if (requestType === "create user") {
     const isUserExist = await User.findOne({ email });
     if (isUserExist) {
