@@ -19,6 +19,15 @@ const sendOTP = async (req, res) => {
   if (!emailPattern.test(email))
     return res.status(401).json({ errorText: "Enter a valid email" });
 
+  if (requestType === "create user") {
+    const isUserExist = await User.findOne({ email });
+    if (isUserExist) {
+      return res.status(403).json({
+        message: "Account already exists for this email",
+      });
+    }
+  }
+
   const transporter = createNodemailTransporter();
   const OTP = generateOtp();
 
