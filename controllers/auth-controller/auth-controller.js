@@ -72,7 +72,7 @@ const verifyOtp = async (req, res) => {
 const signUpUser = async (req, res) => {
   const {
     userInfo,
-    userInfo: { email, userName, password },
+    userInfo: { email, userName, password, location },
   } = req.body;
 
   try {
@@ -91,6 +91,12 @@ const signUpUser = async (req, res) => {
     hashedPassword = await bcrypt.hash(password, 12);
     const NewUser = new User({
       ...userInfo,
+      location: location
+        ? {
+            type: "Point",
+            coordinates: [location.longitude, location.latitude],
+          }
+        : undefined,
       password: hashedPassword,
     });
     await NewUser.save();
@@ -102,7 +108,6 @@ const signUpUser = async (req, res) => {
       token,
     });
   } catch (error) {
-    console.log(error, "85");
     return res.status(500).json({
       errorText: "Failed to create the user!",
     });

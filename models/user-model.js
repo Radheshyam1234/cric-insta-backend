@@ -27,8 +27,23 @@ const UserSchema = new mongoose.Schema({
     type: String,
     default: "",
   },
+  location: {
+    type: {
+      type: String,
+      enum: ["Point"],
+      default: "Point",
+    },
+    coordinates: {
+      type: [Number],
+      default: [0, 0],
+    },
+  },
   followersCount: { type: Number, default: 0 },
   followingCount: { type: Number, default: 0 },
 });
+
+UserSchema.index({ location: "2dsphere" });
+
 const User = mongoose.model("User", UserSchema);
+
 module.exports = User;
