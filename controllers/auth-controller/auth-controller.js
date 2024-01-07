@@ -1,13 +1,15 @@
 const User = require("../../models/user-model");
 const Otp = require("../../models/otp-model");
 const bcrypt = require("bcrypt");
-const jwt = require("jsonwebtoken");
-const { generateOtp } = require("../../utils/generate-otp");
+const { generateOtp } = require("../../services/otp-services");
 const {
   createNodemailTransporter,
   getMailOptions,
-} = require("../../utils/nodemailer");
-const { generateToken } = require("../../utils/generate-token");
+} = require("../../services/nodemailer-services");
+const {
+  generateToken,
+  storeRefreshToken,
+} = require("../../services/token-services");
 const UserDto = require("../../dtos/user-dto");
 require("dotenv").config();
 
@@ -105,6 +107,7 @@ const signUpUser = async (req, res) => {
     const newUserData = await User.findById(NewUser._id);
     const userData = new UserDto(newUserData);
     const { accessToken, refreshToken } = generateToken(NewUser._id);
+    storeRefreshToken();
     res.cookie("refreshtoken", refreshToken, {
       maxAge: 1000 * 60 * 60 * 24 * 30,
       httpOnly: true,
@@ -138,6 +141,7 @@ const signInUser = async (req, res) => {
           if (matched) {
             const userData = new UserDto(user);
             const { accessToken, refreshToken } = generateToken(user._id);
+            storeRefreshToken();
             res.cookie("refreshtoken", refreshToken, {
               maxAge: 1000 * 60 * 60 * 24 * 30,
               httpOnly: true,
@@ -185,6 +189,7 @@ const resetPassword = async (req, res) => {
     else {
       const userData = new UserDto(updatedUser);
       const { accessToken, refreshToken } = generateToken(updatedUser._id);
+      storeRefreshToken();
       res.cookie("refreshtoken", refreshToken, {
         maxAge: 1000 * 60 * 60 * 24 * 30,
         httpOnly: true,
