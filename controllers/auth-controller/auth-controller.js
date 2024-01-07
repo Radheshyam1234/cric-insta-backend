@@ -8,9 +8,12 @@ const {
   getMailOptions,
 } = require("../../utils/nodemailer");
 const { generateToken } = require("../../utils/generate-token");
+const UserDto = require("../../dtos/user-dto");
 require("dotenv").config();
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/* ----------------------- Send OTP ------------------------------------- */
 
 const sendOTP = async (req, res) => {
   let { email } = req.body;
@@ -48,6 +51,8 @@ const sendOTP = async (req, res) => {
   }
 };
 
+/* ----------------------- Verify OTP ------------------------------------- */
+
 const verifyOtp = async (req, res) => {
   const { otp: userEnteredOTP, userInfo } = req.body;
   const { requestType } = req.query;
@@ -68,6 +73,8 @@ const verifyOtp = async (req, res) => {
     return res.status(401).json({ errorText: "Invalid OTP" });
   }
 };
+
+/* ----------------------- Signup after OTP verification ------------------------------------- */
 
 const signUpUser = async (req, res) => {
   const {
@@ -95,11 +102,16 @@ const signUpUser = async (req, res) => {
     });
     await NewUser.save();
 
-    const sanitizedUser = await User.findById(NewUser._id).select("-password");
-    const token = generateToken(NewUser._id);
+    const newUserData = await User.findById(NewUser._id);
+    const userData = new UserDto(newUserData);
+    const { accessToken, refreshToken } = generateToken(NewUser._id);
+    res.cookie("refreshtoken", refreshToken, {
+      maxAge: 1000 * 60 * 60 * 24 * 30,
+      httpOnly: true,
+    });
     return res.status(201).json({
-      user: sanitizedUser,
-      token,
+      user: userData,
+      token: accessToken,
     });
   } catch (error) {
     console.log(error, "85");
@@ -108,6 +120,8 @@ const signUpUser = async (req, res) => {
     });
   }
 };
+
+/* ----------------------- SignIn with Email ------------------------------------- */
 
 const signInUser = async (req, res) => {
   try {
@@ -122,16 +136,15 @@ const signInUser = async (req, res) => {
         .compare(password, user.password)
         .then(async (matched) => {
           if (matched) {
-            const token = jwt.sign(
-              { _id: user._id },
-              process.env.JWT_ACCESS_SECRET
-            );
-            const sanitizedUser = await User.findById(user._id).select(
-              "-password"
-            );
+            const userData = new UserDto(user);
+            const { accessToken, refreshToken } = generateToken(user._id);
+            res.cookie("refreshtoken", refreshToken, {
+              maxAge: 1000 * 60 * 60 * 24 * 30,
+              httpOnly: true,
+            });
             return res.status(201).json({
-              user: sanitizedUser,
-              token,
+              user: userData,
+              token: accessToken,
             });
           } else {
             throw new Error("Password is incorrect!");
@@ -149,6 +162,8 @@ const signInUser = async (req, res) => {
     });
   }
 };
+
+/** ----------------------- Reset Password ------------------------------------- */
 
 const resetPassword = async (req, res) => {
   const { email, password } = req.body;
@@ -168,16 +183,15 @@ const resetPassword = async (req, res) => {
     if (!updatedUser)
       return res.status(403).json({ errorText: "No User Exist" });
     else {
-      const token = jwt.sign(
-        { _id: updatedUser._id },
-        process.env.JWT_ACCESS_SECRET
-      );
-      const sanitizedUser = await User.findById(updatedUser._id).select(
-        "-password"
-      );
+      const userData = new UserDto(updatedUser);
+      const { accessToken, refreshToken } = generateToken(updatedUser._id);
+      res.cookie("refreshtoken", refreshToken, {
+        maxAge: 1000 * 60 * 60 * 24 * 30,
+        httpOnly: true,
+      });
       return res.status(201).json({
-        user: sanitizedUser,
-        token,
+        user: userData,
+        token: accessToken,
       });
     }
   }
