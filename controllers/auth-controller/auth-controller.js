@@ -13,6 +13,8 @@ require("dotenv").config();
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/* ----------------------- Send OTP ------------------------------------- */
+
 const sendOTP = async (req, res) => {
   let { email } = req.body;
   const { requestType } = req.query;
@@ -49,6 +51,8 @@ const sendOTP = async (req, res) => {
   }
 };
 
+/* ----------------------- Verify OTP ------------------------------------- */
+
 const verifyOtp = async (req, res) => {
   const { otp: userEnteredOTP, userInfo } = req.body;
   const { requestType } = req.query;
@@ -69,6 +73,8 @@ const verifyOtp = async (req, res) => {
     return res.status(401).json({ errorText: "Invalid OTP" });
   }
 };
+
+/* ----------------------- Signup after OTP verification ------------------------------------- */
 
 const signUpUser = async (req, res) => {
   const {
@@ -96,10 +102,10 @@ const signUpUser = async (req, res) => {
     });
     await NewUser.save();
 
-    // const sanitizedUser = await User.findById(NewUser._id).select("-password");
-    const userData = new UserDto(await User.findById(NewUser._id));
+    const newUserData = await User.findById(NewUser._id);
+    const userData = new UserDto(newUserData);
     const { accessToken, refreshToken } = generateToken(NewUser._id);
-    res.cookie("refreshtoken", {
+    res.cookie("refreshtoken", refreshToken, {
       maxAge: 1000 * 60 * 60 * 24 * 30,
       httpOnly: true,
     });
@@ -114,6 +120,8 @@ const signUpUser = async (req, res) => {
     });
   }
 };
+
+/* ----------------------- SignIn with Email ------------------------------------- */
 
 const signInUser = async (req, res) => {
   try {
@@ -130,7 +138,7 @@ const signInUser = async (req, res) => {
           if (matched) {
             const userData = new UserDto(user);
             const { accessToken, refreshToken } = generateToken(user._id);
-            res.cookie("refreshtoken", {
+            res.cookie("refreshtoken", refreshToken, {
               maxAge: 1000 * 60 * 60 * 24 * 30,
               httpOnly: true,
             });
@@ -155,6 +163,8 @@ const signInUser = async (req, res) => {
   }
 };
 
+/** ----------------------- Reset Password ------------------------------------- */
+
 const resetPassword = async (req, res) => {
   const { email, password } = req.body;
   if (password.length < 4)
@@ -175,13 +185,13 @@ const resetPassword = async (req, res) => {
     else {
       const userData = new UserDto(updatedUser);
       const { accessToken, refreshToken } = generateToken(updatedUser._id);
-      res.cookie("refreshtoken", {
+      res.cookie("refreshtoken", refreshToken, {
         maxAge: 1000 * 60 * 60 * 24 * 30,
         httpOnly: true,
       });
       return res.status(201).json({
-        user: sanitizedUser,
-        token,
+        user: userData,
+        token: accessToken,
       });
     }
   }
